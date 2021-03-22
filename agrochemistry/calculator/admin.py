@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Brand, Product, ProductTarget, Phase
+from .models import Brand, Product, ProductTarget, Phase, TelegramUser
 
 
 class PhaseAdminInline(admin.TabularInline):
@@ -27,3 +27,4 @@ admin.site.register(Brand, BrandAdmin)
 admin.site.register(Product, ProductAdmin)
 admin.site.register(ProductTarget, ProductTargetAdmin)
 admin.site.register(Phase)
+admin.site.register(TelegramUser)

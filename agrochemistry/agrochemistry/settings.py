@@ -131,4 +131,4 @@ MEDIA_URL = '/media/'
 
 
 # Telegram bot
-TG_TOKEN = env('AGRO_TG_TOKEN')
+TG_TOKEN = env('TG_TOKEN')

@@ -71,3 +71,28 @@ class Phase(models.Model):
 
     def __str__(self):
         return f'{self.product.name} | {self.name}'
+
+
+class TelegramUser(models.Model):
+    username = models.CharField('Юзернейм в телеграме', max_length=50, db_index=True, unique=True)
+    storage_volume = models.SmallIntegerField('Объём резервуара', blank=True, null=True)
+    products = models.ManyToManyField(Product, verbose_name='Продукты', related_name='users', blank=True)
+    last_query_products = models.ManyToManyField(
+        Product,
+        related_name='users_from_query',
+        verbose_name='Последние отфильтрованные продукты',
+        blank=True
+    )  # TODO: DESCRIBE
+
+    class Meta:
+        verbose_name = 'Пользователь'
+        verbose_name_plural = 'Пользователи'
+
+    def __str__(self):
+        return self.username
+
+    def clear_products(self):
+        self.products.clear()
+
+    def clear_last_query_products(self):
+        self.last_query_products.clear()

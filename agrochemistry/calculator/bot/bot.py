@@ -1,8 +1,11 @@
+from os import remove as os_remove
+
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler, \
     CallbackContext
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, Update, ReplyKeyboardRemove
 
 from calculator.models import Product, TelegramUser, PRODUCT_ENVIRONMENTS, ProductTarget
+from .tabler import get_rendered_table_img_path
 
 
 SKIP_QUESTION_TITLE = 'Пропустить'
@@ -69,10 +72,13 @@ def get_inline_markup_with_skip_button(buttons):
     return InlineKeyboardMarkup(buttons)
 
 
-def first_response(update, _):
+def first_response(update: Update, context: CallbackContext):
     user = get_user(update.message.from_user.username)
 
     if update.message.text == CREATE_TABLE_TITLE:
+        table_img_path = get_rendered_table_img_path(user.products.all(), user.storage_volume)
+        context.bot.send_photo(update.effective_message.chat_id, open(table_img_path, 'rb'))
+        os_remove(table_img_path)
         clear_user(user)
         return ConversationHandler.END
 
@@ -113,7 +119,7 @@ def second_response(update: Update, _):
             )
 
             # Send all selected products photos
-            for product in user_products:
+            for product in user_products:  # TODO: optimize by get_values
                 if product.photo:
                     update.message.reply_photo(product.photo)
 

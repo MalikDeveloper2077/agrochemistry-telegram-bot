@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  web:
+    image: app
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: gunicorn agrochemistry.agrochemistry.wsgi:application --bind 0.0.0.0:8000
+    ports:
+      - 8000:8000
+    env_file:
+      - ./.env.prod
+    depends_on:
+      - db
+  bot:
+    image: bot
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    command: python agrochemistry/manage.py bot
+    ports:
+      - 8443:8443
+    env_file:
+      - ./.env.prod
+    depends_on:
+      - db
+  db:
+    image: postgres:13.2-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    env_file:
+      - ./.env.prod.db
+
+volumes:
+  postgres_data:

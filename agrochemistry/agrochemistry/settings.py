@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import environ
+from googletrans import Translator
 
 
 env = environ.Env(
@@ -23,7 +24,10 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
-ALLOWED_HOSTS = []
+if env("DJANGO_ALLOWED_HOSTS", default=[]):
+    ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS").split(" ")
+else:
+    ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -83,8 +87,8 @@ DATABASES = {
         'NAME': env('POSTGRES_DB_NAME'),
         'USER': env('POSTGRES_USERNAME'),
         'PASSWORD': env('POSTGRES_PASS'),
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'HOST': env('POSTGRES_HOST'),
+        'PORT': env('POSTGRES_PORT'),
     }
 }
 
@@ -132,3 +136,8 @@ MEDIA_URL = '/media/'
 
 # Telegram bot
 TG_TOKEN = env('TG_TOKEN')
+
+translator = Translator(service_urls=[
+    'translate.google.com',
+    'translate.google.ru',
+])

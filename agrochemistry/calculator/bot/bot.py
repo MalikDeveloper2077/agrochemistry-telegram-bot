@@ -3,37 +3,41 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Conve
 from telegram import Update, ReplyKeyboardRemove
 
 import calculator.bot.config as config
-from calculator.models import Product, TelegramUser, PRODUCT_ENVIRONMENTS, ProductTarget, Brand, IOS_OS
+from calculator.models import Product, TelegramUser, PRODUCT_ENVIRONMENTS, ProductTarget, Brand
+
+from .messages import ru_home_buttons, en_home_buttons, is_button
 from .utils.django import get_user, set_user_language, filter_user_last_query_products
 from .utils import bot as bot_utils
+from .keyboards import *
 
 
 def start(update, _):
-    """Start step or catch all unregistered by other handlers messages.
-    Send the inline keyboard to select a language
+    """Start command. Send the inline keyboard to select a language.
+    If a user already selected a language, send the message for environment selecting
     """
     user = get_user(update.message.from_user.username)
     if not user.language:
         update.message.reply_text(text='Привет / hi', reply_markup=ReplyKeyboardRemove())
-        update.message.reply_text(text='👇', reply_markup=bot_utils.get_inline_markup_language_selection())
+        update.message.reply_text(text='👇', reply_markup=get_inline_markup_language_selection())
         return 1
 
-    markup = bot_utils.get_product_environment_reply_keyboard()
+    markup = get_product_environment_reply_keyboard()
     bot_utils.send_translated_message(
         send_func=update.message.reply_text,
         lang=user.language,
-        text='Выберите среду выращивания',
+        message_name='environment_message',
         reply_markup=markup
     )
     return 2
 
 
 def stop(update, _=None):
+    """Stop command. Clear the user data"""
     user = get_user(update.message.from_user.username)
     bot_utils.send_translated_message(
         send_func=update.message.reply_text,
         lang=user.language,
-        text=config.BOT_STOP_MESSAGE,
+        message_name='stop_message',
         reply_markup=ReplyKeyboardRemove()
     )
     user.clear()
@@ -42,16 +46,16 @@ def stop(update, _=None):
 
 def language_selecting_callback(update: Update, context: CallbackContext):
     """Set the user language from callback data.
-    send product environments to select
+    Send product environments to select
     """
     user = get_user(update.callback_query.message.chat.username)
     set_user_language(user, update.callback_query.data)
 
-    markup = bot_utils.get_product_environment_reply_keyboard()
+    markup = get_product_environment_reply_keyboard()
     bot_utils.send_translated_message(
         send_func=context.bot.send_message,
         lang=user.language,
-        text='Выберите среду выращивания',
+        message_name='environment_message',
         chat_id=update.effective_message.chat_id,
         reply_markup=markup
     )
@@ -59,12 +63,12 @@ def language_selecting_callback(update: Update, context: CallbackContext):
 
 
 def environment_selecting(update: Update, context: CallbackContext):
-    """Filter the user products by environment and send the brands list"""
+    """Filter the user last query products by environment and send the filters"""
     user = get_user(update.message.from_user.username)
     selected_environment = update.message.text
 
     if selected_environment not in [env for env, val in PRODUCT_ENVIRONMENTS]:
-        envs_markup = bot_utils.get_product_environment_reply_keyboard()
+        envs_markup = get_product_environment_reply_keyboard()
         update.message.reply_text(config.INCORRECT_ENVIRONMENT_MESSAGE, reply_markup=envs_markup)
         return 2
 
@@ -82,24 +86,26 @@ def environment_selecting(update: Update, context: CallbackContext):
 
 
 def filter_selecting_callback(update: Update, context: CallbackContext):
-    """TODO:"""
+    """Handle filter stage callback data by calling the method"""
     return handle_additional_handlers(update=update, bot=context.bot)
 
 
 def target_selecting_response(bot: CallbackContext.bot, chat_id: int, username: str):
+    """Send products targets with the user query products environment"""
     user = get_user(username)
     selected_environment = user.last_query_products.first().environment
     bot_utils.send_translated_message(
         send_func=bot.send_message,
         lang=user.language,
         chat_id=chat_id,
-        text=f'Выберите категорию или отправьте название бренда/удобрения',
-        reply_markup=bot_utils.get_targets_inline_markup(selected_environment, lang=user.language)
+        message_name='target_message',
+        reply_markup=get_targets_inline_markup(selected_environment, lang=user.language)
     )
     return 7
 
 
 def target_selecting_callback(update: Update, context: CallbackContext):
+    """Filter by the callback target and send the query products"""
     query = update.callback_query
     user = get_user(query.message.chat.username)
     try:
@@ -126,7 +132,7 @@ def send_product_link_response(bot: CallbackContext.bot, chat_id: int, username:
     product_description_link = Product.objects.get(id=product_id).description_link
     if not product_description_link:
         lang = get_user(username).language
-        product_description_link = bot_utils.get_translated_text(config.NO_PRODUCT_LINK_MESSAGE, lang=lang)
+        product_description_link = get_message('no_product_link_message', lang=lang)
     bot.send_message(chat_id=chat_id, text=product_description_link)
     return 9
 
@@ -150,30 +156,32 @@ def filter_by_base_category_response(bot: CallbackContext.bot, chat_id: int, use
 
 
 def main_reply_keyboard_response(update: Update, context: CallbackContext):
-    """TODO: """
-    if bot_utils.similar(bot_utils.get_translated_text(update.message.text, 'ru'), config.HOME_BUTTON):
+    """Handler of main reply keyboard buttons"""
+    msg = update.message.text
+
+    if is_button(msg, 'home_button'):
         stop(update)
         return ConversationHandler.END
 
     user = get_user(update.message.from_user.username)
 
-    if bot_utils.similar(bot_utils.get_translated_text(update.message.text, 'ru'), config.SEND_TABLE_BUTTON):
-        bot_utils.send_translated_message(send_func=update.message.reply_text, text='Введите литраж',
-                                          lang=user.language)
+    if is_button(msg, 'send_table_button'):
+        bot_utils.send_translated_message(send_func=update.message.reply_text,
+                                          message_name='storage_volume_message', lang=user.language)
         return 11
 
-    elif bot_utils.similar(bot_utils.get_translated_text(update.message.text, 'ru'), config.CALCULATOR_BUTTON):
+    elif is_button(msg, 'calculator_button'):
         user_products = user.products.all()
         if not user_products:
-            bot_utils.send_translated_message(send_func=update.message.reply_text, text='Вы еще ничего не добавили',
-                                              lang=user.language)
+            bot_utils.send_translated_message(send_func=update.message.reply_text,
+                                              message_name='no_user_products_message', lang=user.language)
             bot_utils.send_filters(bot=context.bot, chat_id=update.effective_message.chat_id, lang=user.language)
             return 5
 
-        send_table_btn = bot_utils.get_translated_text(config.SEND_TABLE_BUTTON, lang=user.language)
-        reply_markup = bot_utils.get_main_reply_keyboard(add_buttons=[[send_table_btn]])
+        send_table_btn = get_message('send_table_button', lang=user.language)
+        reply_markup = get_main_reply_keyboard(add_buttons=[[send_table_btn]])
         bot_utils.send_translated_message(send_func=update.message.reply_text, lang=user.language,
-                                          text='Выбранные удобрения', reply_markup=reply_markup)
+                                          message_name='checkout_message', reply_markup=reply_markup)
         bot_utils.send_checkout(
             bot=context.bot,
             products=user_products,
@@ -184,28 +192,22 @@ def main_reply_keyboard_response(update: Update, context: CallbackContext):
 
 
 def table_callback(update: Update, context: CallbackContext):
+    """The table keyboard buttons handler"""
     return handle_additional_handlers(update, context.bot)
 
 
 def return_to_query_products_response(bot: CallbackContext.bot, chat_id: int, username: str):
-    """TODO:"""
     user = get_user(username)
     products = user.last_query_products.all()
-    main_markup = bot_utils.get_main_reply_keyboard(add_buttons=[[config.CALCULATOR_BUTTON]], lang=user.language)
+    main_markup = get_main_reply_keyboard(add_buttons=[['calculator_button']], lang=user.language)
 
-    msg = 'Продолжайте выбор'
-    if user.language != config.DEFAULT_LANG:
-        bot_utils.send_translated_message(
-            send_func=bot.send_message,
-            lang=user.language,
-            chat_id=chat_id,
-            text=msg,
-            reply_markup=main_markup
-        )
-    else:
-        bot.send_message(chat_id=chat_id, text=msg, reply_markup=bot_utils.get_main_reply_keyboard(
-            add_buttons=[[config.CALCULATOR_BUTTON]]
-        ))
+    bot_utils.send_translated_message(
+        send_func=bot.send_message,
+        lang=user.language,
+        chat_id=chat_id,
+        message_name='continue_products_selecting_message',
+        reply_markup=main_markup
+    )
 
     bot_utils.send_products(
         products=products[:5],
@@ -219,21 +221,22 @@ def return_to_query_products_response(bot: CallbackContext.bot, chat_id: int, us
 
 
 def product_callback(update: Update, context: CallbackContext):
-    """TODO"""
+    """Handler for the product keyboard buttons"""
     query = update.callback_query
     user = get_user(update.effective_user.username)
 
     if query.data.startswith(config.ADD_PRODUCT) or query.data.startswith(config.REMOVE_PRODUCT):
         args = query.data.split(' ')
-        action = args.pop(0)  # remove config.ADD_PRODUCT
+        action = args.pop(0)  # remove config.ADD_PRODUCT or config.REMOVE_PRODUCT
         product_id = int(args[0])
+
         if action == config.ADD_PRODUCT:
             user.products.add(Product.objects.get(id=product_id))
             args.append(config.REMOVE_PRODUCT)
         elif action == config.REMOVE_PRODUCT:
             user.products.remove(Product.objects.get(id=product_id))
             args.append(config.ADD_PRODUCT)
-        query.edit_message_reply_markup(reply_markup=bot_utils.get_product_inline_markup(*args, lang=user.language))
+        query.edit_message_reply_markup(reply_markup=get_product_inline_markup(*args, lang=user.language))
 
     elif query.data.startswith(config.SEND_PRODUCT_LINK):
         product_id = int(query.data.split(' ')[1])
@@ -251,20 +254,13 @@ def product_callback(update: Update, context: CallbackContext):
             products = user.last_query_products.all()
 
         clicked_product = Product.objects.get(id=query.data.split(' ')[1])
-        clicked_product_index = list(products).index(clicked_product) + 1
+        start_index, end_index = bot_utils.get_next_five_products_indexes(products, clicked_product)
 
-        products_count = products.count()
-        if products_count - clicked_product_index > 5:
-            end_index = clicked_product_index + 5
-        else:
-            end_index = products_count
-
-        next_products_to_show = products[clicked_product_index:end_index]
-        remaining_products_count = products_count - end_index
+        next_products_to_show = products[start_index:end_index]
         bot_utils.send_products(
             products=next_products_to_show,
             user_products=user.products.all(),
-            next_products_count=remaining_products_count,
+            next_products_count=products.count() - end_index,
             bot=context.bot,
             chat_id=update.effective_message.chat_id,
             lang=user.language
@@ -273,6 +269,7 @@ def product_callback(update: Update, context: CallbackContext):
 
 
 def edit_user_products_response(bot: CallbackContext.bot, chat_id: int, username: str):
+    """Handler to edit button. Send all user products"""
     user = get_user(username)
     products = user.products.all()
     bot_utils.send_products(
@@ -288,12 +285,14 @@ def edit_user_products_response(bot: CallbackContext.bot, chat_id: int, username
 
 
 def checkout_response(update: Update, context: CallbackContext):
-    """TODO:"""
+    """Handle the checkout keyboard callback data"""
     return handle_additional_handlers(update=update, bot=context.bot)
 
 
 def storage_volume_selecting(update: Update, context: CallbackContext):
-    """TODO"""
+    """Handle for an entered user storage volume.
+    Save the storage volume to user and send the table
+    """
     user = get_user(update.message.from_user.username)
     try:
         volume = ''.join(symb for symb in update.message.text if symb.isdigit())
@@ -302,7 +301,7 @@ def storage_volume_selecting(update: Update, context: CallbackContext):
         bot_utils.send_translated_message(
             send_func=update.message.reply_text,
             lang=user.language,
-            text=config.INCORRECT_STORAGE_VOLUME_MESSAGE,
+            message_name='incorrect_storage_volume_message',
             reply_markup=ReplyKeyboardRemove()
         )
         return 11
@@ -314,22 +313,24 @@ def storage_volume_selecting(update: Update, context: CallbackContext):
 
 
 def message_handler(update: Update, context: CallbackContext):
-    """TODO:"""
+    """Handle all unregistered messages (not command, not conversation answer).
+    And the main keyboard buttons. Find products by the message text
+    """
     msg = update.message.text
     user = get_user(update.effective_message.from_user.username)
 
-    # If the message is a main reply button but on another language
-    for main_button in config.MAIN_KEYBOARD_BUTTONS:
-        if bot_utils.similar(bot_utils.get_translated_text(msg, 'ru'), main_button):
-            return main_reply_keyboard_response(update, context)
+    # If the message is a main keyboard button
+    if msg in ru_home_buttons.values() or msg in en_home_buttons.values():
+        return main_reply_keyboard_response(update, context)
 
+    # Find a product or all brand products by comparing with the message text
     brand_products = Product.objects.filter(brand__name__icontains=msg)
     find_products = Product.objects.filter(name__icontains=msg)
     products = brand_products or find_products
 
     if not products:
         bot_utils.send_translated_message(send_func=update.message.reply_text, lang=user.language,
-                                          text=config.NO_SEARCHED_PRODUCTS_MESSAGE)
+                                          message_name='no_searched_products_message')
         bot_utils.send_filters(context.bot, update.effective_message.chat_id, lang=user.language)
         return 5
 
@@ -345,50 +346,65 @@ def message_handler(update: Update, context: CallbackContext):
 
 
 def os_selecting_response(bot: CallbackContext.bot, chat_id: int, username: str):
+    """Send OS selecting message"""
     user = get_user(username)
-    markup = bot_utils.get_os_selecting_inline_markup()
+    markup = get_os_selecting_inline_markup()
     bot_utils.send_translated_message(send_func=bot.send_message, chat_id=chat_id,
-                                      text=config.SELECT_OS_MESSAGE, reply_markup=markup, lang=user.language)
+                                      message_name='os_message', reply_markup=markup, lang=user.language)
     return 13
 
 
 def os_selecting_callback(update: Update, context: CallbackContext):
+    """Save if the selected OS is iOS. Send start cycle date message"""
     user = get_user(update.callback_query.message.chat.username)
-    user.os = update.callback_query.data
-    user.save(update_fields=('os',))
+    user.is_ios = update.callback_query.data == config.IOS
+    user.save(update_fields=('is_ios',))
 
-    msg = 'Введите дату начала цикла (формат: yyyy-mm-dd)'
     chat_id = update.effective_message.chat_id
-    bot_utils.send_translated_message(send_func=context.bot.send_message, chat_id=chat_id, text=msg, lang=user.language)
+    bot_utils.send_translated_message(send_func=context.bot.send_message, chat_id=chat_id,
+                                      message_name='start_cycle_date_message', lang=user.language)
     return 14
 
 
 def calendar_start_date_selecting(update: Update, context: CallbackContext):
+    """Save start cycle date to user.
+    If the OS is iOS ask for user email
+    Else send the .ics table file with the instructions
+    """
     user = get_user(update.message.from_user.username)
     user.cycle_start_date = update.message.text
     user.save(update_fields=('cycle_start_date',))
 
-    if user.os != IOS_OS:
-        chat_id = update.effective_message.chat_id
-        bot_utils.send_calendar_file(context.bot, chat_id, user.username, start_date=user.cycle_start_date)
-        update.message.reply_text(config.CALENDAR_FILE_INSTRUCTIONS_MESSAGE)
-        return ConversationHandler.END
+    if user.is_ios:
+        bot_utils.send_translated_message(update.message.reply_text, message_name='email_message',
+                                          lang=user.language)
+        return 15
 
-    bot_utils.send_translated_message(update.message.reply_text, text=config.ENTER_EMAIL_MESSAGE, lang=user.language)
-    return 15
-
-
-def email_selecting_response(update: Update, context: CallbackContext):
     chat_id = update.effective_message.chat_id
-    email = update.message.text
-    user = get_user(update.message.from_user.username)
     bot_utils.send_calendar_file(context.bot, chat_id, user.username, start_date=user.cycle_start_date)
-    update.message.reply_text(config.CALENDAR_FILE_IOS_INSTRUCTION_MESSAGE)
+    bot_utils.send_translated_message(send_func=update.message.reply_text, lang=user.language,
+                                      message_name='calendar_instructions_message')
+    return ConversationHandler.END
+
+
+def email_selecting_response(update: Update, _):
+    """Send the .ics calendar file to the user email and the instructions"""
+    user_lang = get_user(update.message.from_user.username).language
+    email = update.message.text
+    try:
+        bot_utils.send_email_calendar(username=update.message.from_user.username, to_email=(email,))
+    except ValueError as e:
+        # Incorrect start cycle date
+        bot_utils.send_translated_message(send_func=update.message.reply_text, message_name=str(e), lang=user_lang)
+        return 12
+
+    bot_utils.send_translated_message(send_func=update.message.reply_text, lang=user_lang,
+                                      message_name='ios_calendar_instructions_message')
     return ConversationHandler.END
 
 
 def handle_additional_handlers(update: Update, bot: CallbackContext.bot):
-    """"""
+    """Compare a callback data with the additional handlers method, call it"""
     query = update.callback_query
     function_name = query.data.split(' ')[0]
     chat_id = update.effective_message.chat_id
@@ -402,7 +418,7 @@ def handle_additional_handlers(update: Update, bot: CallbackContext.bot):
 
 
 additional_handlers = {
-    # TODO:
+    # Additional methods to handle callback data from inline keyboards
     'targets_list': target_selecting_response,
     'send_product_link': send_product_link_response,
     'filter_by_base_category': filter_by_base_category_response,
@@ -430,12 +446,6 @@ conversation_handler = ConversationHandler(
     },
     fallbacks=[
         CommandHandler('stop', stop),
-        MessageHandler(
-            Filters.regex(bot_utils.get_translated_text(config.HOME_BUTTON, 'ru')) |
-            Filters.regex(bot_utils.get_translated_text(config.CALCULATOR_BUTTON, 'ru')) |
-            Filters.regex(bot_utils.get_translated_text(config.SEND_TABLE_BUTTON, 'ru')),
-            main_reply_keyboard_response
-        ),
         MessageHandler(Filters.text, message_handler)
     ]
 )

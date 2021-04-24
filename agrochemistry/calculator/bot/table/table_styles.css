@@ -21,3 +21,10 @@ table {
   width: 100%;
   margin: 0 auto;
 }
+.watermark {
+  margin-top: 10px;
+  float: right;
+  width: 30px;
+  height: 30px;
+  opacity: 0.5;
+}

@@ -1,3 +1,5 @@
+import re
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -32,15 +34,6 @@ ENGLISH_LANGUAGE = 'EN'
 USER_LANGUAGES = [
     (RUSSIAN_LANGUAGE, 'RU'),
     (ENGLISH_LANGUAGE, 'EN')
-]
-
-ANDROID_OS = 'android'
-IOS_OS = 'ios'
-MAC_OS = 'mac'
-USER_OS = [
-    (ANDROID_OS, ANDROID_OS),
-    (IOS_OS, IOS_OS),
-    (MAC_OS, MAC_OS)
 ]
 
 
@@ -119,7 +112,7 @@ class Product(models.Model):
 class Phase(models.Model):
     product = models.ForeignKey(Product, verbose_name='Продукт', on_delete=models.CASCADE, related_name='phases')
     name = models.CharField('Название', choices=PHASES, max_length=40)
-    description = models.CharField('Описание', max_length=200, blank=True)  # TODO: automatically set before creating
+    description = models.CharField('Описание', max_length=200, blank=True)
     weeks = models.CharField('Количество недель', max_length=10)
     formula = models.CharField('Формула', max_length=20, help_text='Пример: (r / 2) * 5, где r - объём резервуара')
 
@@ -130,12 +123,18 @@ class Phase(models.Model):
     def __str__(self):
         return f'{self.product.name} | {self.name}'
 
+    def get_weeks(self):
+        try:
+            return int(self.weeks)
+        except ValueError:
+            return int(re.findall(r'\d+', self.weeks)[-1])
+
 
 class TelegramUser(models.Model):
     username = models.CharField('Юзернейм в телеграме', max_length=50, db_index=True, unique=True)
     storage_volume = models.SmallIntegerField('Объём резервуара', blank=True, null=True)
     products = models.ManyToManyField(Product, verbose_name='Продукты', related_name='users', blank=True)
-    os = models.CharField('ОС', choices=USER_OS, max_length=10, blank=True)
+    is_ios = models.BooleanField('iOS', null=True)
     last_query_products = models.ManyToManyField(
         Product,
         related_name='users_from_query',

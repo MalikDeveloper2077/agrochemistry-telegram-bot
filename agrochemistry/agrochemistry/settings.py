@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import environ
-from googletrans import Translator
 
 
 env = environ.Env(
@@ -137,7 +136,10 @@ MEDIA_URL = '/media/'
 # Telegram bot
 TG_TOKEN = env('TG_TOKEN')
 
-translator = Translator(service_urls=[
-    'translate.google.com',
-    'translate.google.ru',
-])
+
+# Mail
+EMAIL_USE_TLS = True
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'nAsad1385@gmail.com'
+EMAIL_HOST_PASSWORD = 'MalikAsad'

@@ -12,10 +12,12 @@ def set_user_language(user: TelegramUser, language: str):
 
 
 def filter_user_last_query_products(user: TelegramUser, filter_arguments: dict):
-    """Filter the last_query_products by your arguments
+    """Filter the last_query_products by the given arguments
 
-    filter_arguments (dict): Keys and values for the django filter function arguments
-    {'filter_param1': value1, 'filter_param2': value2, ...}
+    Parameters:
+        user (TelegramUser): user which query products will be filtered
+        filter_arguments (dict): Keys and values for the django filter function arguments
+            {'filter_param1': value1, 'filter_param2': value2, ...}
 
     """
     user.last_query_products.remove(

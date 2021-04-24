@@ -1,5 +1,6 @@
 aiohttp==3.7.4.post0
 APScheduler==3.6.3
+arrow==0.14.7
 asgiref==3.3.1
 async-timeout==3.0.1
 attrs==20.3.0
@@ -16,7 +17,6 @@ django-3-jet==1.0.7
 django-environ==0.4.5
 et-xmlfile==1.0.1
 google-api-python-client==1.4.1
-googletrans==4.0.0rc1
 gunicorn==20.0.4
 h11==0.9.0
 h2==3.2.0
@@ -27,6 +27,7 @@ httpcore==0.9.1
 httplib2==0.19.0
 httpx==0.13.3
 hyperframe==5.2.0
+ics==0.7
 idna==2.10
 imgkit==1.1.0
 lxml==4.6.3
@@ -39,6 +40,7 @@ psycopg2==2.8.6
 pyasn1==0.4.8
 pyasn1-modules==0.2.8
 pyparsing==2.4.7
+python-dateutil==2.8.1
 python-telegram-bot==13.4.1
 pytz==2021.1
 requests==2.25.1
@@ -49,6 +51,7 @@ sniffio==1.2.0
 soupsieve==2.2.1
 sqlparse==0.4.1
 tablepyxl==0.6.1
+TatSu==5.6.1
 tornado==6.1
 typing-extensions==3.7.4.3
 tzlocal==2.1

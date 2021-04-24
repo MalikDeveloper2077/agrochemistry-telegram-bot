@@ -1,17 +1,13 @@
-import smtplib
+from django.core.mail import EmailMessage
 
 
-class Mailer:
-    def __init__(self, gmail, password):
-        self.gmail = gmail
-        self.gmail_password = password
-
-    def send_mail(self, to, text):
-        try:
-            server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-            server.ehlo()
-            server.login(self.gmail, self.gmail_password)
-            server.sendmail(self.gmail, to, text)
-            server.close()
-        except:
-            pass
+def send_mail(text: str, sent_from: str, to: str, subject='', attach_path=''):
+    email = EmailMessage(
+        subject,
+        text,
+        sent_from,
+        to,
+    )
+    if attach_path:
+        email.attach_file(attach_path)
+    email.send()
